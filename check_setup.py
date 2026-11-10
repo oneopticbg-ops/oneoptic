@@ -9,7 +9,7 @@ for k in ["IG_TOKEN", "IG_USER_ID", "GEMINI_API_KEY", "TG_BOT_TOKEN", "TG_CHAT_I
 photos = [p for p in glob.glob("products/*") if p.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))]
 res(f"продуктови снимки в products/ ({len(photos)})", len(photos) >= 3, "качи поне 3 свои снимки в папка products/")
 try:
-    r = requests.get(f"https://graph.facebook.com/v21.0/{os.environ['IG_USER_ID']}", params={"fields": "username,followers_count", "access_token": os.environ["IG_TOKEN"]}, timeout=30).json()
+    r = requests.get(f"https://graph.facebook.com/v26.0/{os.environ['IG_USER_ID']}", params={"fields": "username,followers_count", "access_token": os.environ["IG_TOKEN"]}, timeout=30).json()
     res(f"Instagram връзка ({r.get('username')})", "username" in r, str(r.get("error", {}).get("message", r)))
 except Exception as e: res("Instagram връзка", False, str(e))
 try:

@@ -1,6 +1,6 @@
 """Чете одобренията от Telegram и публикува одобрените постове в Instagram."""
 import os, json, glob, time, requests
-G = "https://graph.facebook.com/v21.0"
+G = "https://graph.facebook.com/v26.0"
 TOK, UID = os.environ["IG_TOKEN"], os.environ["IG_USER_ID"]
 TG = f"https://api.telegram.org/bot{os.environ['TG_BOT_TOKEN']}"; CHAT = str(os.environ["TG_CHAT_ID"])
 REPO = os.environ["GITHUB_REPOSITORY"]; BR = os.environ.get("GITHUB_REF_NAME", "main")

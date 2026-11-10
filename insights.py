@@ -1,6 +1,6 @@
 """Анализ: топ постове на профила ни + бенчмарк на конкурентни оптики чрез Business Discovery API."""
 import os, json, requests
-G = "https://graph.facebook.com/v21.0"
+G = "https://graph.facebook.com/v26.0"
 TOK, UID = os.environ["IG_TOKEN"], os.environ["IG_USER_ID"]
 COMP = [c.strip() for c in os.environ.get(
     "COMPETITORS", "jimmyfairly,warbyparker,aceandtate,silhouetteeyewear,eyerim.eyewear").split(",") if c.strip()]
