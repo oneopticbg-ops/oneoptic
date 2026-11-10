@@ -1,1 +1,28 @@
-
+name: generate
+on:
+  schedule: [{cron: "0 6 * * 1,4"}]   # понеделник и четвъртък
+  workflow_dispatch:
+permissions: {contents: write}
+concurrency: repo-writes
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    env:
+      IG_TOKEN: ${{ secrets.IG_TOKEN }}
+      IG_USER_ID: ${{ secrets.IG_USER_ID }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+      TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+      BRAND_NAME: ${{ vars.BRAND_NAME }}
+      COMPETITORS: ${{ vars.COMPETITORS }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: sudo apt-get install -y fonts-dejavu-core && pip install -r requirements.txt
+      - run: python insights.py
+      - run: python generate.py
+      - run: |
+          git config user.name bot && git config user.email bot@users.noreply.github.com
+          git add -A && git commit -m "new drafts" || exit 0
+          git pull --rebase && git push
