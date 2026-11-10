@@ -9,7 +9,7 @@ CHAT = os.environ.get("TG_CHAT_ID", "")
 FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf"
 DRY = os.environ.get("DRY_RUN") == "1"
 
-def ask_gemini(prompt):
+def ask_gemini(prompt, imgs=()):
     if os.environ.get("MOCK_GEMINI"):
         return json.loads(os.environ["MOCK_GEMINI"])
     last = None
@@ -17,7 +17,7 @@ def ask_gemini(prompt):
         try:
             r = requests.post(f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent",
                 params={"key": os.environ["GEMINI_API_KEY"]}, timeout=120,
-                json={"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"responseMimeType": "application/json"}})
+                json={"contents": [{"parts": [{"text": prompt}] + list(imgs)}], "generationConfig": {"responseMimeType": "application/json"}})
             data = json.loads(r.json()["candidates"][0]["content"]["parts"][0]["text"])
             if isinstance(data, dict):
                 data = next((v for v in data.values() if isinstance(v, list)), [data])
@@ -27,20 +27,35 @@ def ask_gemini(prompt):
     raise RuntimeError(f"Gemini не отговори коректно: {last}")
 
 def render(photo, text, size, brand_line=True):
+    from PIL import ImageChops
     im = Image.open(photo).convert("RGB"); W, H = size
-    s = max(W / im.width, H / im.height); im = im.resize((int(im.width * s), int(im.height * s)))
-    l, t = (im.width - W) // 2, (im.height - H) // 2; im = im.crop((l, t, l + W, t + H))
-    ov = Image.new("RGBA", (W, H)); d = ImageDraw.Draw(ov)
-    for y in range(int(H * .55), H):
-        d.line([(0, y), (W, y)], fill=(0, 0, 0, int(190 * (y - H * .55) / (H * .45))))
-    im = Image.alpha_composite(im.convert("RGBA"), ov); d = ImageDraw.Draw(im)
+    # изравняване на фона до бяло + изрязване около очилата
+    px = im.load(); bw, bh = im.size
+    edge = [px[x, y] for x in range(0, bw, max(1, bw // 40)) for y in (0, bh - 1)] + [px[x, y] for y in range(0, bh, max(1, bh // 40)) for x in (0, bw - 1)]
+    bg = [sorted(c[i] for c in edge)[len(edge) // 2] for i in range(3)]
+    if min(bg) > 150:
+        im = Image.merge("RGB", [ch.point(lambda v, b=b: min(255, int(v * 255 / max(b, 1)))) for ch, b in zip(im.split(), bg)])
+    box = ImageChops.difference(im, Image.new("RGB", im.size, (255, 255, 255))).convert("L").point(lambda p: 255 if p > 28 else 0).getbbox()
+    if box:
+        pad = int(max(box[2] - box[0], box[3] - box[1]) * .04)
+        im = im.crop((max(0, box[0] - pad), max(0, box[1] - pad), min(bw, box[2] + pad), min(bh, box[3] + pad)))
+    cream = (244, 240, 232)
+    canvas = Image.new("RGB", size, cream)
+    area_w, area_h = int(W * .90), int(H * (.50 if H > W * 1.5 else .56))
+    k = min(area_w / im.width, area_h / im.height, 2.5)
+    r = im.resize((max(1, int(im.width * k)), max(1, int(im.height * k))), Image.LANCZOS)
+    layer = Image.new("RGB", size, (255, 255, 255))
+    layer.paste(r, ((W - r.width) // 2, int(H * .07) + (area_h - r.height) // 2))
+    canvas = ImageChops.multiply(canvas, layer)   # белият фон на снимката става кремав, без ръбове
+    d = ImageDraw.Draw(canvas)
     try: f, fs = ImageFont.truetype(FONT, W // 15), ImageFont.truetype(FONT, W // 32)
     except OSError: f = fs = ImageFont.load_default()
-    y = H - int(H * .08) - (len(textwrap.wrap(text, 24)) * (W // 12))
-    for line in textwrap.wrap(text, 24):
-        d.text((W // 12, y), line, font=f, fill="white"); y += W // 12
-    if brand_line: d.text((W // 12, H - int(H * .06)), BRAND.upper(), font=fs, fill=(220, 190, 140))
-    return im.convert("RGB")
+    lines = textwrap.wrap(text, 22)
+    y = int(H * (.66 if H > W * 1.5 else .72))
+    for line in lines:
+        d.text((W // 12, y), line, font=f, fill=(38, 32, 26)); y += W // 11
+    if brand_line: d.text((W // 12, H - int(H * .07)), BRAND.upper(), font=fs, fill=(150, 112, 60))
+    return canvas
 
 def tg_send(post, media_path):
     if DRY: print("DRY_RUN: пропускам Telegram за", media_path); return
@@ -65,10 +80,16 @@ prompt = f"""Ти си social media мениджър на оптика "{BRAND}"
 Анализ на какво работи: {json.dumps(brief, ensure_ascii=False)}
 Научи СТРУКТУРАТА и ФОРМАТИТЕ (кукичка, дължина, въпроси, CTA), не копирай текстове.
 Тон: микс от луксозен и приятелски. Език: български. Без здравни обещания ("подобрява зрението"), без цени и отстъпки,
-без твърдения за марки, които не са дадени. Налични снимки (имена на файлове): {[os.path.basename(p) for p in photos]}.
+без твърдения за марки, които не са дадени. Към заявката са приложени снимките на очилата с имената им. Опиши в копито точно онова, което се вижда (форма, цвят, материал), без да измисляш модел или цена. Налични снимки (имена на файлове): {[os.path.basename(p) for p in photos]}.
 Върни JSON списък от {N} поста (максимум 1 с format="reel", другите "photo"). Всеки: 
 {{"format":"photo|reel","overlay":"до 8 думи върху изображението","caption":"копи с кукичка и CTA","hashtags":["8-12 хаштага"],"photos":["файл(ове); 1 за photo, 3-4 за reel"]}}"""
-ideas = [i for i in ask_gemini(prompt) if isinstance(i, dict) and i.get("caption")][:N]
+import base64, io
+imgs = []
+for p in random.sample(photos, min(len(photos), 12)):
+    t = Image.open(p).convert("RGB"); t.thumbnail((512, 512)); buf = io.BytesIO(); t.save(buf, "JPEG", quality=80)
+    imgs += [{"text": "Снимка, файл: " + os.path.basename(p)},
+             {"inline_data": {"mime_type": "image/jpeg", "data": base64.b64encode(buf.getvalue()).decode()}}]
+ideas = [i for i in ask_gemini(prompt, imgs) if isinstance(i, dict) and i.get("caption")][:N]
 assert ideas, "Gemini не върна валидни идеи"
 for idea in ideas:
     idea.setdefault("format", "photo"); idea.setdefault("overlay", ""); idea.setdefault("hashtags", []); idea.setdefault("photos", [])
