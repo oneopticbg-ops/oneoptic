@@ -26,7 +26,7 @@ def own():
 def competitors():
     res = []
     for u in COMP:
-        f = f"business_discovery.username({u}){{followers_count,media.limit(30){{caption,like_count,comments_count,media_type,permalink,timestamp}}}}"
+        f = f"business_discovery.username({u}){{followers_count,media.limit(30){{caption,like_count,comments_count,media_type,media_url,permalink,timestamp}}}}"
         d = get(UID, fields=f).get("business_discovery")
         if not d or not d.get("media", {}).get("data"):
             print("пропуснат (няма достъп/данни):", u); continue
