@@ -21,6 +21,14 @@ try:
     res("Gemini ключ", "candidates" in r, str(r.get("error", {}).get("message", r)))
 except Exception as e: res("Gemini ключ", False, str(e))
 try:
+    model = os.environ.get("GEMINI_IMAGE_MODEL") or "gemini-2.5-flash-image"
+    r = requests.post(f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent", params={"key": os.environ["GEMINI_API_KEY"]}, timeout=120,
+        json={"contents": [{"parts": [{"text": "A single red circle on a white background, flat illustration"}]}], "generationConfig": {"responseModalities": ["IMAGE"]}}).json()
+    parts = (r.get("candidates") or [{}])[0].get("content", {}).get("parts", [])
+    ok_img = any(p.get("inlineData") or p.get("inline_data") for p in parts)
+    res(f"AI снимки ({model})", ok_img, "Google не позволява AI снимки с този ключ: " + str(r.get("error", {}).get("message", r))[:300] + " -> постовете ще са студийни снимки без AI")
+except Exception as e: res("AI снимки", False, str(e))
+try:
     r = requests.get(f"https://api.telegram.org/bot{os.environ['TG_BOT_TOKEN']}/getMe", timeout=30).json()
     res("Telegram бот", r.get("ok"), "провери токена от @BotFather")
     r = requests.post(f"https://api.telegram.org/bot{os.environ['TG_BOT_TOKEN']}/sendMessage", data={"chat_id": os.environ["TG_CHAT_ID"], "text": "✅ Връзката работи"}, timeout=30).json()
