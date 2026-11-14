@@ -20,6 +20,14 @@ try:
         params={"key": os.environ["GEMINI_API_KEY"]}, json={"contents": [{"parts": [{"text": "кажи ок"}]}]}, timeout=60).json()
     res("Gemini ключ", "candidates" in r, str(r.get("error", {}).get("message", r)))
 except Exception as e: res("Gemini ключ", False, str(e))
+om = os.environ.get("OPENAI_IMAGE_MODEL") or "gpt-image-2.5-sunburst"
+if os.environ.get("OPENAI_API_KEY"):
+    try:
+        r = requests.get(f"https://api.openai.com/v1/models/{om}", headers={"Authorization": "Bearer " + os.environ["OPENAI_API_KEY"]}, timeout=30)
+        res(f"OpenAI снимки като в ChatGPT ({om})", r.status_code == 200, f"{r.status_code}: {r.text[:250]} -> провери ключа, добавени ли са кредити и дали моделът е наличен за акаунта ти")
+    except Exception as e: res("OpenAI", False, str(e))
+else:
+    print("ℹ️  OpenAI ключ не е добавен (OPENAI_API_KEY) - AI снимките ще са от Gemini или студийни")
 try:
     model = os.environ.get("GEMINI_IMAGE_MODEL") or "gemini-2.5-flash-image"
     r = requests.post(f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent", params={"key": os.environ["GEMINI_API_KEY"]}, timeout=120,
